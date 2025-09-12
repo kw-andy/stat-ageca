@@ -1,0 +1,7 @@
+taipy-gui
+sqlalchemy
+psycopg2-binary
+pandas
+python-dateutil
+python-dotenv
+plotly
