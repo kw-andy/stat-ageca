@@ -4,7 +4,8 @@ from sqlalchemy import create_engine, text
 from dateutil import parser
 from dotenv import load_dotenv
 
-load_dotenv() #chargement de l'URL DATABASE ainsi que le fichier CSV
+#chargement de l'URL DATABASE ainsi que le fichier CSV
+load_dotenv() 
 
 
 print("DATABASE_URL IS", DATABASE_URL)
