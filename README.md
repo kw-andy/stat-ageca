@@ -30,4 +30,4 @@ python app.py
 
 ### Note : Don't run db.py alone
 
-It’s just a library module. It gets imported by `etl_import.py` and `app.py`.
+It’s just a library module. It gets imported by `app.py`.
