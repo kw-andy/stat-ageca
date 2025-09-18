@@ -1,7 +1,6 @@
-taipy-gui
 sqlalchemy
-psycopg2-binary
+python-dotenv
 pandas
 python-dateutil
-python-dotenv
+streamlit
 plotly
