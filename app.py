@@ -4,6 +4,10 @@ import plotly.graph_objects as go
 from datetime import datetime
 from db import fetch_dataframe, month_expr
 
+# functions to :
+
+# format
+
 def format_number_fr(number):
     """Format number with French formatting (. for thousands)"""
     if pd.isna(number) or number == 0:
@@ -37,6 +41,9 @@ def format_currency_fr(number):
     return f"{format_number_fr(number)} €"
 
 st.set_page_config(page_title="Dashboard Réservations & CA", layout="wide")
+
+# build figures: build_combined_figure, build_gap_analysis_figure
+# & build_correlation_figure
 
 def build_combined_figure(df_resa, df_ca):
     """Build the combined dual-axis chart"""
@@ -347,6 +354,9 @@ def build_correlation_figure(df_resa, df_ca):
     
     return fig
 
+# fetch data: calculate_gap_metrics & 
+# fetch_data
+
 def calculate_gap_metrics(df_resa, df_ca):
     """Calculate various gap metrics between reservations and CA"""
     if df_resa.empty or df_ca.empty:
@@ -477,6 +487,8 @@ def fetch_data(date_debut, date_fin, statut_sel, organisateur):
         
     except Exception as e:
         return pd.DataFrame(columns=["mois", "nb_reservations"]), pd.DataFrame(columns=["mois", "ca_brut", "ca_net", "ecart"]), str(e)
+
+# Display des graphiques
 
 # Streamlit UI
 st.title("📊 Dashboard – Réservations & CA")
