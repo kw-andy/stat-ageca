@@ -693,21 +693,30 @@ else:
             insights = []
             
             # Best and worst months
+            # BEFORE: Fixed idxmax() KeyError when all values are zero
             if len(df_merged) > 0:
-                best_resa_month = df_merged.loc[df_merged["nb_reservations"].idxmax(), "mois"].strftime("%Y-%m")
-                best_ca_month = df_merged.loc[df_merged["ca_net"].idxmax(), "mois"].strftime("%Y-%m")
-                
-                insights.append(f"📅 **Meilleur mois réservations** : {best_resa_month}")
-                insights.append(f"💰 **Meilleur mois CA** : {best_ca_month}")
-                
-                if best_resa_month != best_ca_month:
+                best_resa_month = None
+                best_ca_month = None
+
+                if df_merged["nb_reservations"].max() > 0:  # Has actual reservations
+                    best_resa_month = pd.to_datetime(df_merged.loc[df_merged["nb_reservations"].idxmax(), "mois"]).strftime("%Y-%m")
+                    insights.append(f"📅 **Meilleur mois réservations** : {best_resa_month}")
+
+                if df_merged["ca_net"].max() > 0:  # Has actual revenue
+                    best_ca_month = pd.to_datetime(df_merged.loc[df_merged["ca_net"].idxmax(), "mois"]).strftime("%Y-%m")
+                    insights.append(f"💰 **Meilleur mois CA** : {best_ca_month}")
+
+                if best_resa_month and best_ca_month and best_resa_month != best_ca_month:
                     insights.append("⚠️ Les pics de réservations et de CA ne coïncident pas")
+            # AFTER: idxmax() now safely handles zero-only columns
                 
                 # Efficiency analysis
                 avg_ca_per_resa = df_merged["ca_per_resa"].mean()
-                best_efficiency_month = df_merged.loc[df_merged["ca_per_resa"].idxmax(), "mois"].strftime("%Y-%m")
                 insights.append(f"🎯 **CA moyen par réservation** : {format_currency_fr(avg_ca_per_resa)}")
-                insights.append(f"🏆 **Mois le plus efficace** : {best_efficiency_month}")
+
+                if df_merged["ca_per_resa"].max() > 0:  # Has actual efficiency data
+                    best_efficiency_month = pd.to_datetime(df_merged.loc[df_merged["ca_per_resa"].idxmax(), "mois"]).strftime("%Y-%m")
+                    insights.append(f"🏆 **Mois le plus efficace** : {best_efficiency_month}")
                 
                 # Trend analysis
                 if len(df_merged) >= 3:
