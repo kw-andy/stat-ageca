@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import numpy as np
 from datetime import datetime
 from db import fetch_dataframe, month_expr
 
@@ -183,7 +184,11 @@ def build_gap_analysis_figure(df_resa, df_ca):
 
     # Calculate metrics
     # 1. CA per reservation
-    df["ca_per_resa"] = df["ca_net"] / df["nb_reservations"].replace(0, 1)
+    df["ca_per_resa"] = np.where(
+        df["nb_reservations"] > 0,
+        df["ca_net"] / df["nb_reservations"],
+        0
+    )
     
     # 2. Normalized values (0-100%) for trend comparison
     resa_max = df["nb_reservations"].max() if df["nb_reservations"].max() > 0 else 1
@@ -410,7 +415,11 @@ def calculate_gap_metrics(df_resa, df_ca):
             metrics["growth_gap"] = resa_growth - ca_growth
     
     # 4. Efficiency metrics
-    df["ca_per_resa"] = df["ca_net"] / df["nb_reservations"].replace(0, 1)
+    df["ca_per_resa"] = np.where(
+        df["nb_reservations"] > 0,
+        df["ca_net"] / df["nb_reservations"],
+        0
+    )
     metrics["ca_per_resa_trend"] = df["ca_per_resa"].pct_change().mean() * 100 if len(df) > 1 else 0
     
     return metrics
