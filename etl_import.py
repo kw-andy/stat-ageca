@@ -5,8 +5,10 @@ from dateutil import parser
 from dotenv import load_dotenv
 
 #chargement de l'URL DATABASE ainsi que le fichier CSV
-load_dotenv() 
+load_dotenv()
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+CSV_PATH = os.getenv("CSV_PATH")
 
 print("DATABASE_URL IS", DATABASE_URL)
 
@@ -90,6 +92,11 @@ for c in ["start_time", "end_time"]:
 for c in ["duration_min", "quantity", "price_ht", "tva_rate", "price_ttc"]:
     df[c] = pd.to_numeric(df[c], errors="coerce")
 
-print("Insertion…")
+print("Effacement des données existantes…")
+with engine.begin() as conn:
+    conn.execute(text("DELETE FROM line_items"))
+    print(f"✅ Toutes les données existantes ont été supprimées")
+
+print("Insertion des nouvelles données…")
 df.to_sql("line_items", engine, if_exists="append", index=False, method="multi", chunksize=2000)
 print("Terminé ✅")
