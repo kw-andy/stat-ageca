@@ -10,7 +10,14 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 CSV_PATH = os.getenv("CSV_PATH")
 
+if not CSV_PATH:
+    CSV_PATH = input("Entrez le nom du fichier CSV (ou le chemin complet): ").strip()
+    if not CSV_PATH:
+        print("❌ Aucun fichier CSV spécifié")
+        exit(1)
+
 print("DATABASE_URL IS", DATABASE_URL)
+print("CSV_PATH IS", CSV_PATH)
 
 engine = create_engine(
     DATABASE_URL,
@@ -98,5 +105,5 @@ with engine.begin() as conn:
     print(f"✅ Toutes les données existantes ont été supprimées")
 
 print("Insertion des nouvelles données…")
-df.to_sql("line_items", engine, if_exists="append", index=False, method="multi", chunksize=2000)
+df.to_sql("line_items", engine, if_exists="append", index=False, method="multi", chunksize=100)
 print("Terminé ✅")
