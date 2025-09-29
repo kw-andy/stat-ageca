@@ -96,7 +96,7 @@ def build_combined_figure(df_resa, df_ca):
             go.Scatter(
                 x=df["mois"],
                 y=df["ca_brut"],
-                name="CA brut (TTC)",
+                name="CA Facturé (TTC)",
                 mode="lines+markers",
                 line=dict(width=3, color="blue"),
                 marker=dict(size=6),
@@ -111,7 +111,7 @@ def build_combined_figure(df_resa, df_ca):
             go.Scatter(
                 x=df["mois"],
                 y=df["ca_net"],
-                name="CA net (TTC)",
+                name="CA Encaissé (TTC)",
                 mode="lines+markers",
                 line=dict(width=3, color="green", dash="dash"),
                 marker=dict(size=6),
@@ -122,7 +122,7 @@ def build_combined_figure(df_resa, df_ca):
 
     fig.update_layout(
         title=dict(
-            text="Réservations (axe gauche) vs CA brut & net (axe droit)",
+            text="Réservations (axe gauche) vs CA Facturé & Encaissé (axe droit)",
             x=0.5,
             font=dict(size=20)
         ),
@@ -475,9 +475,9 @@ def fetch_data(date_debut, date_fin, statut_sel, organisateur):
         m_doc = month_expr("doc_date")
         sql_ca = f"""
             SELECT {m_doc} AS mois,
-                   SUM(CASE WHEN NOT (doc_type LIKE 'Avoir%') THEN price_ttc*quantity ELSE 0 END) AS ca_brut,
-                   SUM(CASE WHEN (doc_type LIKE 'Avoir%')
-                            THEN -price_ttc*quantity ELSE price_ttc*quantity END) AS ca_net
+                   SUM(CASE WHEN doc_type = 'Facture' THEN price_ttc*quantity ELSE 0 END) -
+                   SUM(CASE WHEN doc_type = 'Avoir' THEN price_ttc*quantity ELSE 0 END) AS ca_brut,
+                   SUM(CASE WHEN doc_type = 'Facture' AND status = 'Encaissée' THEN price_ttc*quantity ELSE 0 END) AS ca_net
             FROM line_items
             {where_doc}
             GROUP BY 1
@@ -485,7 +485,7 @@ def fetch_data(date_debut, date_fin, statut_sel, organisateur):
         """
         df_ca = fetch_dataframe(sql_ca, params)
         
-        # Add ecart column if missing
+        # Add ecart column (difference between Facturé and Encaissé)
         if not df_ca.empty:
             if "ecart" not in df_ca.columns:
                 df_ca["ecart"] = df_ca["ca_brut"].fillna(0) - df_ca["ca_net"].fillna(0)
@@ -511,11 +511,11 @@ with col1:
 with col2:
     date_fin = st.date_input("Date fin (exclue)", value=None)
 
-statut_options = ["Encaissée", "Annulée", "Facturée", "Posée", "Confirmée"]
+statut_options = ["Posée", "Confirmée", "Facturée", "Encaissée", "Annulée"]
 statut_sel = st.sidebar.multiselect(
-    "Statut", 
-    options=statut_options, 
-    default=["Encaissée"]
+    "Statut",
+    options=statut_options,
+    default=["Facturée", "Encaissée"]
 )
 
 organisateur = st.sidebar.text_input("Organisateur (contient)", "")
