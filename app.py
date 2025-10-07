@@ -425,75 +425,105 @@ def calculate_gap_metrics(df_resa, df_ca):
     return metrics
 
 def fetch_data(date_debut, date_fin, statut_sel, organisateur):
-    """Fetch reservation and CA data"""
-    
-    # Build WHERE clauses
-    wh, params = [], {}
-    if date_debut:
-        wh.append("doc_date >= :d1")
-        params["d1"] = date_debut
-    if date_fin:
-        wh.append("doc_date < :d2")
-        params["d2"] = date_fin
-    if statut_sel:
-        in_list = ",".join([f":s{i}" for i, _ in enumerate(statut_sel)])
-        wh.append(f"status IN ({in_list})")
-        for i, s in enumerate(statut_sel):
-            params[f"s{i}"] = s
-    if organisateur.strip():
-        wh.append("organizer LIKE :org")
-        params["org"] = f"%{organisateur.strip()}%"
-    
-    where_doc = " WHERE " + " AND ".join(wh) if wh else ""
-    
-    # Reservations query
-    wh_r, params_r = [], {}
-    if date_debut:
-        wh_r.append("reservation_date >= :r1")
-        params_r["r1"] = date_debut
-    if date_fin:
-        wh_r.append("reservation_date < :r2")
-        params_r["r2"] = date_fin
-    if organisateur.strip():
-        wh_r.append("organizer LIKE :org")
-        params_r["org"] = f"%{organisateur.strip()}%"
-    
-    where_resa = " WHERE " + " AND ".join(wh_r) if wh_r else ""
-    
-    # Execute queries
+    """Fetch reservation and CA data from CSV"""
+
     try:
-        m_resa = month_expr("reservation_date")
-        sql_resa = f"""
-            SELECT {m_resa} AS mois, COUNT(DISTINCT doc_number) AS nb_reservations
-            FROM line_items
-            {where_resa}
-            GROUP BY 1
-            ORDER BY 1
-        """
-        df_resa = fetch_dataframe(sql_resa, params_r)
-        
-        m_doc = month_expr("doc_date")
-        sql_ca = f"""
-            SELECT {m_doc} AS mois,
-                   SUM(CASE WHEN doc_type = 'Facture' THEN price_ttc*quantity ELSE 0 END) -
-                   SUM(CASE WHEN doc_type = 'Avoir' THEN price_ttc*quantity ELSE 0 END) AS ca_brut,
-                   SUM(CASE WHEN doc_type = 'Facture' AND status = 'Encaissée' THEN price_ttc*quantity ELSE 0 END) AS ca_net
-            FROM line_items
-            {where_doc}
-            GROUP BY 1
-            ORDER BY 1
-        """
-        df_ca = fetch_dataframe(sql_ca, params)
-        
-        # Add ecart column (difference between Facturé and Encaissé)
-        if not df_ca.empty:
-            if "ecart" not in df_ca.columns:
-                df_ca["ecart"] = df_ca["ca_brut"].fillna(0) - df_ca["ca_net"].fillna(0)
-        else:
-            df_ca = pd.DataFrame(columns=["mois", "ca_brut", "ca_net", "ecart"])
-        
+        # Read CSV file
+        df = pd.read_csv("Liste_Option_Facturable_sept_25.csv", sep=";", encoding='latin-1')
+
+        # Clean column names
+        df.columns = df.columns.str.strip()
+
+        # Parse dates
+        df["Date de réservation"] = pd.to_datetime(df["Date de réservation"], format="%d/%m/%Y", errors='coerce')
+        df["Date de document"] = pd.to_datetime(df["Date de document"], format="%d/%m/%Y", errors='coerce')
+
+        # Apply filters
+        filtered_df = df.copy()
+
+        if date_debut:
+            filtered_df = filtered_df[filtered_df["Date de réservation"] >= pd.to_datetime(date_debut)]
+        if date_fin:
+            filtered_df = filtered_df[filtered_df["Date de réservation"] < pd.to_datetime(date_fin)]
+        if organisateur.strip():
+            filtered_df = filtered_df[filtered_df["Organisateur"].str.contains(organisateur.strip(), case=False, na=False)]
+
+        # Only process "Facture" documents
+        facture_df = filtered_df[filtered_df["Type de document"] == "Facture"].copy()
+
+        # Calculate sessions for reservations
+        def calculate_sessions(row):
+            try:
+                if pd.isna(row["Début"]) or pd.isna(row["Fin"]):
+                    return 0
+
+                debut = pd.to_datetime(row["Début"], format="%H:%M", errors='coerce').time()
+                fin = pd.to_datetime(row["Fin"], format="%H:%M", errors='coerce').time()
+
+                if debut is None or fin is None:
+                    return 0
+
+                # Calculate duration in hours
+                debut_hours = debut.hour + debut.minute / 60.0
+                fin_hours = fin.hour + fin.minute / 60.0
+                duration = fin_hours - debut_hours
+
+                # Handle overnight sessions
+                if duration < 0:
+                    duration += 24
+
+                # Apply business logic
+                if duration > 7.2:
+                    return 2
+                elif duration >= 3.0:
+                    return 1
+                else:
+                    return 0
+            except:
+                return 0
+
+        facture_df["sessions"] = facture_df.apply(calculate_sessions, axis=1)
+
+        # Clean price data
+        def clean_price(price_str):
+            if pd.isna(price_str):
+                return 0
+            try:
+                # Remove currency symbols and convert comma to dot
+                cleaned = str(price_str).replace("€", "").replace(",", ".").strip()
+                return float(cleaned)
+            except:
+                return 0
+
+        facture_df["Prix TTC Clean"] = facture_df["Prix TTC"].apply(clean_price)
+        facture_df["Quantité Clean"] = pd.to_numeric(facture_df["Quantité"], errors='coerce').fillna(1)
+
+        # Calculate monthly aggregations
+        facture_df["mois"] = facture_df["Date de réservation"].dt.to_period('M')
+
+        # Sessions aggregation
+        df_resa = facture_df.groupby("mois")["sessions"].sum().reset_index()
+        df_resa.columns = ["mois", "nb_reservations"]
+        df_resa["mois"] = df_resa["mois"].dt.to_timestamp()
+
+        # CA aggregation
+        facture_df["ca_amount"] = facture_df["Prix TTC Clean"] * facture_df["Quantité Clean"]
+
+        ca_brut = facture_df.groupby("mois")["ca_amount"].sum().reset_index()
+        ca_brut.columns = ["mois", "ca_brut"]
+
+        # CA encaissé (only "Encaissée" status)
+        encaisse_df = facture_df[facture_df["Statut"] == "Encaissée"]
+        ca_net = encaisse_df.groupby("mois")["ca_amount"].sum().reset_index()
+        ca_net.columns = ["mois", "ca_net"]
+
+        # Merge CA data
+        df_ca = pd.merge(ca_brut, ca_net, on="mois", how="left").fillna(0)
+        df_ca["mois"] = df_ca["mois"].dt.to_timestamp()
+        df_ca["ecart"] = df_ca["ca_brut"] - df_ca["ca_net"]
+
         return df_resa, df_ca, None
-        
+
     except Exception as e:
         return pd.DataFrame(columns=["mois", "nb_reservations"]), pd.DataFrame(columns=["mois", "ca_brut", "ca_net", "ecart"]), str(e)
 
@@ -511,11 +541,11 @@ with col1:
 with col2:
     date_fin = st.date_input("Date fin (exclue)", value=None)
 
-statut_options = ["Posée", "Confirmée", "Facturée", "Encaissée", "Annulée"]
+statut_options = ["Facturée"]
 statut_sel = st.sidebar.multiselect(
     "Statut",
     options=statut_options,
-    default=["Facturée", "Encaissée"]
+    default=["Facturée"]
 )
 
 organisateur = st.sidebar.text_input("Organisateur (contient)", "")
