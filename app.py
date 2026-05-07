@@ -10,29 +10,12 @@ from db import fetch_dataframe, get_metadata, month_expr
 # format
 
 def format_number_fr(number):
-    """Format number with French formatting (. for thousands)"""
+    """Format number with French formatting (space as thousands separator)."""
     if pd.isna(number) or number == 0:
         return "0"
-    
-    # Convert to integer and format manually
-    num = int(number)
-    
-    # Convert to string and add dots from right to left
-    num_str = str(abs(num))
-    
-    # Add dots every 3 digits from right
-    if len(num_str) > 3:
-        formatted = ""
-        for i, digit in enumerate(reversed(num_str)):
-            if i > 0 and i % 3 == 0:
-                formatted = "." + formatted
-            formatted = digit + formatted
-        
-        if num < 0:
-            formatted = "-" + formatted
-        return formatted
-    else:
-        return str(num)
+    num = int(round(number))
+    formatted = "{:,}".format(abs(num)).replace(",", " ")
+    return formatted if num >= 0 else "-" + formatted
 
 def format_currency_fr(number):
     """Format currency with French formatting"""
