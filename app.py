@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
-from datetime import datetime
+from datetime import datetime, date
 from db import fetch_dataframe, get_metadata, month_expr
 
 # functions to :
@@ -493,11 +493,14 @@ st.title("📊 Dashboard – Réservations & CA")
 # Sidebar for filters
 st.sidebar.header("🔍 Filtres")
 
+_today = date.today()
+_debut_defaut = date(_today.year, 1, 1)
+
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    date_debut = st.date_input("Date début", value=None)
+    date_debut = st.date_input("Date début", value=_debut_defaut)
 with col2:
-    date_fin = st.date_input("Date fin (exclue)", value=None)
+    date_fin = st.date_input("Date fin (exclue)", value=_today)
 
 statut_options = ["Posée", "Confirmée", "Facturée", "Encaissée", "Annulée"]
 statut_sel = st.sidebar.multiselect(
