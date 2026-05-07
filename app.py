@@ -546,16 +546,34 @@ else:
     # Display metrics
     col1, col2, col3, col4 = st.columns(4)
     
+    OBJECTIF_MENSUEL = 40_000
+
     total_reservations = df_resa["nb_reservations"].sum() if not df_resa.empty else 0
+    nb_mois = df_ca["mois"].nunique() if not df_ca.empty else 1
+    nb_mois = max(nb_mois, 1)
     total_ca_brut = df_ca["ca_brut"].sum() if not df_ca.empty else 0
-    total_ca_net = df_ca["ca_net"].sum() if not df_ca.empty else 0
-    
+    total_ca_net  = df_ca["ca_net"].sum()  if not df_ca.empty else 0
+    moy_brut = total_ca_brut / nb_mois
+    moy_net  = total_ca_net  / nb_mois
+
     with col1:
         st.metric("Total Réservations", format_number_fr(total_reservations))
     with col2:
-        st.metric("CA Brut Total", format_currency_fr(total_ca_brut))
+        delta_brut = moy_brut - OBJECTIF_MENSUEL
+        st.metric(
+            "CA Brut moy./mois",
+            format_currency_fr(moy_brut),
+            delta=f"{format_currency_fr(delta_brut)} vs obj. 40 000 €",
+            delta_color="normal",
+        )
     with col3:
-        st.metric("CA Net Total", format_currency_fr(total_ca_net))
+        delta_net = moy_net - OBJECTIF_MENSUEL
+        st.metric(
+            "CA Net moy./mois",
+            format_currency_fr(moy_net),
+            delta=f"{format_currency_fr(delta_net)} vs obj. 40 000 €",
+            delta_color="normal",
+        )
     with col4:
         ca_per_resa = gap_metrics.get("ca_per_resa_avg", 0)
         st.metric("CA moyen / Résa", format_currency_fr(ca_per_resa))
