@@ -103,6 +103,24 @@ def build_combined_figure(df_resa, df_ca):
             )
         )
 
+    # Ligne objectif mensuel
+    if not df.empty:
+        fig.add_shape(
+            type="line",
+            x0=df["mois"].min(), x1=df["mois"].max(),
+            y0=40000, y1=40000,
+            yref="y2",
+            line=dict(color="orange", width=1.5, dash="dot"),
+        )
+        fig.add_annotation(
+            x=df["mois"].max(), y=40000,
+            yref="y2",
+            text="Objectif 40 k€",
+            showarrow=False,
+            xanchor="right", yanchor="bottom",
+            font=dict(color="orange", size=11),
+        )
+
     fig.update_layout(
         title=dict(
             text="Réservations (axe gauche) vs CA Facturé & Encaissé (axe droit)",
