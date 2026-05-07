@@ -22,20 +22,25 @@ Dashboard analytique pour visualiser les réservations et le chiffre d'affaires 
 
 ```
 stat-ageca/
-├── app.py                        # Application principale Streamlit
-├── db.py                         # Connexion SQLAlchemy + helpers SQL
-├── etl_import.py                 # Import CSV → DB (par date de réservation)
-├── etl_import_by_doc_date.py     # Import CSV → DB (par date de document)
-├── analyze_discrepancy.py        # Analyse des écarts de données
-├── check_september_2023.py       # Vérification données sept. 2023
-├── test_app.py                   # Tests application
-├── test_corrected_logic.py       # Tests logique métier
-├── requirements.txt              # Dépendances Python
-├── .env                          # Variables d'environnement (non versionné)
-├── .env.example                  # Modèle de configuration
-├── Liste_Option_Facturable.csv   # Source de données
-├── resaca.db                     # Base SQLite
-└── DEPLOYMENT.MD                 # Guide déploiement (Nginx, SSL, systemd)
+├── app.py                           # Application principale Streamlit
+├── db.py                            # Connexion SQLAlchemy + helpers SQL
+├── etl_import_ok.py                 # ETL principal — import CSV → DB (version validée)
+├── etl_import.py                    # ETL alternatif (par date de réservation)
+├── etl_import_by_doc_date.py        # ETL alternatif (par date de document)
+├── csv/
+│   ├── Liste_Option_Facturable_ok.csv   # Source principale (export RoomingIT)
+│   ├── liste_contact.csv                # Annuaire clients (Zone6 = catégorie tarifaire)
+│   └── reconciliaton_nassima.csv        # Journal comptable double-entrée
+├── analyze_discrepancy.py           # Analyse des écarts de données
+├── check_september_2023.py          # Vérification données sept. 2023
+├── test_app.py                      # Tests application
+├── test_corrected_logic.py          # Tests logique métier
+├── requirements.txt                 # Dépendances Python
+├── .env                             # Variables d'environnement (non versionné)
+├── .env.example                     # Modèle de configuration
+├── resaca.db                        # Base SQLite (non versionné)
+├── REGLES_CALCUL.md                 # Règles de calcul CA validées
+└── DEPLOYMENT.MD                    # Guide déploiement (Nginx, SSL, systemd)
 ```
 
 ---
@@ -50,10 +55,13 @@ cp .env.example .env
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-# 3. Importer les données CSV en base (une seule fois)
-.venv/bin/python etl_import.py
+# 3. Placer le CSV source dans csv/
+#    → csv/Liste_Option_Facturable_ok.csv
 
-# 4. Lancer l'application
+# 4. Importer les données en base
+.venv/bin/python etl_import_ok.py
+
+# 5. Lancer l'application
 .venv/bin/streamlit run app.py
 ```
 
@@ -65,10 +73,20 @@ L'app est accessible sur http://localhost:8501
 
 ```env
 DATABASE_URL=sqlite:///./resaca.db
-CSV_PATH=./Liste_Option_Facturable.csv
 ```
 
 Pour PostgreSQL : `DATABASE_URL=postgresql://user:password@host/dbname`
+
+---
+
+## Logique comptable
+
+Voir [`REGLES_CALCUL.md`](./REGLES_CALCUL.md) pour le détail complet des règles de calcul du CA, la structure des données, et les cas particuliers.
+
+Résumé :
+- **CA Brut** = Σ Factures − Σ Avoirs (filtrés par `reservation_date`)
+- **CA Net** = Σ Factures dont `status = 'Encaissée'` (filtrées par `reservation_date`)
+- **Écart** = CA Brut − CA Net (montant facturé non encore encaissé)
 
 ---
 

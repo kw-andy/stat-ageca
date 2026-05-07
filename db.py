@@ -23,7 +23,16 @@ def fetch_dataframe(sql: str, params: dict | None = None):
 def month_expr(column_name: str) -> str:
     """Retourne l'expression SQL pour tronquer au 1er du mois, selon le dialecte."""
     if engine.dialect.name == "sqlite":
-        # 'YYYY-MM-01' via strftime()
         return f"date(strftime('%Y-%m-01', {column_name}))"
     else:  # postgres
         return f"date_trunc('month', {column_name})::date"
+
+
+def get_metadata() -> dict:
+    """Retourne le contenu de la table metadata sous forme de dict."""
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT key, value, updated_at FROM metadata")).fetchall()
+        return {r[0]: {"value": r[1], "updated_at": r[2]} for r in rows}
+    except Exception:
+        return {}

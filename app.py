@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 from datetime import datetime
-from db import fetch_dataframe, month_expr
+from db import fetch_dataframe, get_metadata, month_expr
 
 # functions to :
 
@@ -425,77 +425,65 @@ def calculate_gap_metrics(df_resa, df_ca):
     return metrics
 
 def fetch_data(date_debut, date_fin, statut_sel, organisateur):
-    """Fetch reservation and CA data"""
-    
-    # Build WHERE clauses
+    """Fetch reservation and CA data.
+
+    Réservations et CA sont tous deux groupés par reservation_date
+    (date d'utilisation de la salle), conformément à la logique validée
+    le 2026-05-07. Le CA Brut inclut toutes les Factures et Avoirs quel
+    que soit leur statut ; le CA Net se limite aux Factures Encaissées.
+    """
+    # Filtres communs (reservation_date + organisateur)
     wh, params = [], {}
     if date_debut:
-        wh.append("doc_date >= :d1")
-        params["d1"] = date_debut
+        wh.append("reservation_date >= :r1")
+        params["r1"] = date_debut
     if date_fin:
-        wh.append("doc_date < :d2")
-        params["d2"] = date_fin
-    if statut_sel:
-        in_list = ",".join([f":s{i}" for i, _ in enumerate(statut_sel)])
-        wh.append(f"status IN ({in_list})")
-        for i, s in enumerate(statut_sel):
-            params[f"s{i}"] = s
+        wh.append("reservation_date < :r2")
+        params["r2"] = date_fin
     if organisateur.strip():
         wh.append("organizer LIKE :org")
         params["org"] = f"%{organisateur.strip()}%"
-    
-    where_doc = " WHERE " + " AND ".join(wh) if wh else ""
-    
-    # Reservations query
-    wh_r, params_r = [], {}
-    if date_debut:
-        wh_r.append("reservation_date >= :r1")
-        params_r["r1"] = date_debut
-    if date_fin:
-        wh_r.append("reservation_date < :r2")
-        params_r["r2"] = date_fin
-    if organisateur.strip():
-        wh_r.append("organizer LIKE :org")
-        params_r["org"] = f"%{organisateur.strip()}%"
-    
-    where_resa = " WHERE " + " AND ".join(wh_r) if wh_r else ""
-    
-    # Execute queries
+
+    where = " WHERE " + " AND ".join(wh) if wh else ""
+
     try:
-        m_resa = month_expr("reservation_date")
+        m = month_expr("reservation_date")
+
         sql_resa = f"""
-            SELECT {m_resa} AS mois, COUNT(DISTINCT doc_number) AS nb_reservations
+            SELECT {m} AS mois, COUNT(DISTINCT doc_number) AS nb_reservations
             FROM line_items
-            {where_resa}
+            {where}
             GROUP BY 1
             ORDER BY 1
         """
-        df_resa = fetch_dataframe(sql_resa, params_r)
-        
-        m_doc = month_expr("doc_date")
+        df_resa = fetch_dataframe(sql_resa, params)
+
         sql_ca = f"""
-            SELECT {m_doc} AS mois,
+            SELECT {m} AS mois,
                    SUM(CASE WHEN doc_type = 'Facture' THEN price_ttc*quantity ELSE 0 END) -
-                   SUM(CASE WHEN doc_type = 'Avoir' THEN price_ttc*quantity ELSE 0 END) AS ca_brut,
-                   SUM(CASE WHEN doc_type = 'Facture' AND status = 'Encaissée' THEN price_ttc*quantity ELSE 0 END) AS ca_net
+                   SUM(CASE WHEN doc_type = 'Avoir'   THEN price_ttc*quantity ELSE 0 END) AS ca_brut,
+                   SUM(CASE WHEN doc_type = 'Facture' AND status = 'Encaissée'
+                            THEN price_ttc*quantity ELSE 0 END)                            AS ca_net
             FROM line_items
-            {where_doc}
+            {where}
             GROUP BY 1
             ORDER BY 1
         """
         df_ca = fetch_dataframe(sql_ca, params)
-        
-        # Add ecart column (difference between Facturé and Encaissé)
+
         if not df_ca.empty:
-            if "ecart" not in df_ca.columns:
-                df_ca["ecart"] = df_ca["ca_brut"].fillna(0) - df_ca["ca_net"].fillna(0)
+            df_ca["ecart"] = df_ca["ca_brut"].fillna(0) - df_ca["ca_net"].fillna(0)
         else:
             df_ca = pd.DataFrame(columns=["mois", "ca_brut", "ca_net", "ecart"])
-        
+
         return df_resa, df_ca, None
-        
+
     except Exception as e:
-        return pd.DataFrame(columns=["mois", "nb_reservations"]), pd.DataFrame(columns=["mois", "ca_brut", "ca_net", "ecart"]), str(e)
+        return (
+            pd.DataFrame(columns=["mois", "nb_reservations"]),
+            pd.DataFrame(columns=["mois", "ca_brut", "ca_net", "ecart"]),
+            str(e),
+        )
 
 # Display des graphiques
 
@@ -528,6 +516,18 @@ chart_type = st.sidebar.selectbox(
 
 if st.sidebar.button("🔄 Actualiser"):
     st.rerun()
+
+# Métadonnées — timestamp logique comptable
+meta = get_metadata()
+if meta:
+    st.sidebar.markdown("---")
+    st.sidebar.caption("**Données**")
+    src = meta.get("data_source", {}).get("value", "—")
+    imported = meta.get("data_imported_at", {}).get("value", "—")
+    validated = meta.get("logic_validated_at", {}).get("value", "—")
+    st.sidebar.caption(f"Source : {src}")
+    st.sidebar.caption(f"Importé le : {imported}")
+    st.sidebar.caption(f"Logique validée le : {validated}")
 
 # Fetch data
 with st.spinner("Chargement des données..."):

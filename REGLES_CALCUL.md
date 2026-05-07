@@ -1,12 +1,37 @@
 # Règles de calcul — Dashboard AGECA
 
+---
+
+## Validation de la logique comptable
+
+| Paramètre | Valeur |
+|-----------|--------|
+| **Date de validation** | 2026-05-07 |
+| **Version logique** | 1.0 |
+| **Source de données active** | `csv/Liste_Option_Facturable_ok.csv` |
+| **Date d'import** | 2026-05-07T10:25:46 |
+| **Documents exclus** | `F24251802` (SCI BON PASTEUR — 61 454 € "Gestion", compte comptable vide) |
+| **Base de calcul du CA** | `reservation_date` (date d'utilisation de la salle) |
+
+> Cette logique est la référence validée. Toute modification doit être documentée ici avec une nouvelle date de validation.
+
+---
+
 ## Sources de données
 
 | Fichier | Rôle |
 |---------|------|
-| `csv/export_roomingit.csv` | Export RoomingIT — source principale (1 495 lignes) |
+| `csv/Liste_Option_Facturable_ok.csv` | Export RoomingIT — source principale (17 246 lignes, oct 2022 → mai 2026) |
 | `csv/liste_contact.csv` | Annuaire clients avec catégorie tarifaire (Zone6) |
 | `csv/reconciliaton_nassima.csv` | Journal comptable double-entrée pour réconciliation |
+
+### Liens entre fichiers
+
+| Lien | Clé gauche | Clé droite | Taux de correspondance |
+|------|-----------|-----------|----------------------|
+| RoomingIT → Contacts | `N° de l'organisateur` | `CleContact` | **98,6 %** (961/975) |
+| Réconciliation → Contacts | compte 411xxxxx (sans "411") | `CleContact` | 95,8 % (69/72) |
+| Réconciliation → RoomingIT | `Document` | `N° de document` | 64,7 % (66/102) — réconciliation partielle mars 2026 |
 
 ---
 
@@ -86,7 +111,7 @@ COUNT(DISTINCT doc_number)
 
 Filtré par **`reservation_date`** (date d'utilisation de la salle), pas par `doc_date`.
 
-> ⚠️ Le CA est calculé sur `doc_date` (date de facturation), le nombre de réservations sur `reservation_date` (date d'usage). Un filtre sur une période donnée peut donc donner des résultats apparemment asymétriques entre les deux métriques.
+> ✅ Depuis la validation du 2026-05-07, le CA **et** le nombre de réservations sont tous deux calculés sur `reservation_date` (date d'utilisation de la salle). Un filtre de période s'applique donc de façon cohérente aux deux métriques.
 
 ---
 
